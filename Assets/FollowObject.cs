@@ -3,9 +3,25 @@ using System.Collections.Generic;
 using UnityEngine;
 
 public class FollowObject : MonoBehaviour {
+    private enum SizeDirection
+    {
+        y, x
+    };
+
     public float CameraFollowSpeed = 5.0f;
     public float CameraZoomSpeed = 5.0f;
-    public List<GameObject> Tracked;
+    public float CameraRotateSpeed = 2.0f;
+    public float Padding = 12.0f;
+    public float MinSize = 30.0f;
+    SizeDirection _size_direction;
+    public float ChangeSizeDirectionCooldown = 0.5f;
+    private float _can_change_size_direction_at;
+    private Vector2 _wanted_pos;
+    private float _wanted_rotation;
+    private float _wanted_size;
+    public GameObject TrackedPlayer1;
+    public GameObject TrackedPlayer2;
+    public List<GameObject> TrackedOther;
 
     private struct RemovedTrackedGO
     {
@@ -15,26 +31,30 @@ public class FollowObject : MonoBehaviour {
 
     private List<RemovedTrackedGO> _removed;
     private Camera _camera;
-    private float _original_camera_size;
 
     void Start()
     {
         _camera = GetComponent<Camera>();
         _removed = new List<RemovedTrackedGO>();
-        _original_camera_size = _camera.orthographicSize;
+
+        _wanted_pos = new Vector2();
+        _wanted_rotation = 0;
+        _wanted_size = _camera.orthographicSize;
+        _can_change_size_direction_at = 0;
+        _size_direction = SizeDirection.x;
     }
 
     public void Add(GameObject t)
     {
-        Tracked.Add(t);
+        TrackedOther.Add(t);
     }
 
     public void Remove(GameObject t, float ttl)
     {
-        if (!Tracked.Contains(t))
+        if (!TrackedOther.Contains(t))
             return;
 
-        Tracked.Remove(t);
+        TrackedOther.Remove(t);
 
         if (ttl == 0)
             return;
@@ -45,52 +65,41 @@ public class FollowObject : MonoBehaviour {
         _removed.Add(rt);
     }
 
-    private Vector2 CalculateWantedPos()
+    static private Vector2 GetWantedPos(Vector2 player1_pos, Vector2 player2_pos, List<Vector2> tracked_positions)
     {
-        if (Tracked.Count == 0)
-            return new Vector2(0, 0);
-
-        var first_pos = Tracked[0].transform.position;
-        var num_tracked = 1;
+        Vector2 first_pos = player1_pos;
         var tracked_added = new Vector2(0, 0);
+        tracked_added += player2_pos - first_pos;
+        var num_tracked = 2;
 
-        for (var i = 1; i < Tracked.Count; ++i)
+        for (var i = 0; i < tracked_positions.Count; ++i)
         {
-            Vector2 diff = Tracked[i].transform.position - first_pos;
+            Vector2 diff = tracked_positions[i] - first_pos;
             tracked_added += diff;
             ++num_tracked;
         }
 
-        _removed = _removed.FindAll(x => Time.time < x.end_of_life);
-
-        for (var i = 0; i < _removed.Count; ++i)
-        {
-            Vector2 diff = _removed[i].pos - first_pos;
-            tracked_added += diff;
-            ++num_tracked;
-        }
-
-        Vector2 first_pos_v2 = first_pos;
-        return first_pos_v2 + (num_tracked == 0 ? new Vector2(0, 0) : (tracked_added * (1.0f / num_tracked)));
+        return first_pos + tracked_added * (1.0f / num_tracked);
     }
 
-    private float GetNewCameraSize()
+    static Vector3 RotateAround(Vector3 point, Vector3 pivot, float angle)
     {
-        if ((Tracked.Count + _removed.Count) < 2)
+        return Quaternion.Euler(0, 0, -Mathf.Abs(angle)) * (point - pivot) + pivot;
+    }
+
+    static private Vector2 GetCameraBounds(Vector2 player1_pos, Vector2 player2_pos, List<Vector2> tracked_positions)
+    {
+        var p1 = player1_pos;
+        var p2 = player2_pos;
+        
+        var min_x = p2.x < p1.x ? p2.x : p1.x;
+        var min_y = p2.y < p1.y ? p2.y : p1.y;
+        var max_x = p2.x > p1.x ? p2.x : p1.x;
+        var max_y = p2.y > p1.y ? p2.y : p1.y;
+
+        for (var i = 0; i < tracked_positions.Count; ++i)
         {
-            return _camera.orthographicSize + (_original_camera_size - _camera.orthographicSize) * CameraZoomSpeed / 5.0f * Time.deltaTime;
-        }
-
-        Vector2 f = Tracked[0].transform.position;
-
-        float min_x = f.x;
-        float min_y = f.y;
-        float max_x = f.x;
-        float max_y = f.y;
-
-        for (var i = 1; i < Tracked.Count; ++i)
-        {
-            Vector2 p = Tracked[i].transform.position;
+            Vector2 p = tracked_positions[i];
 
             if (p.x < min_x)
                 min_x = p.x;
@@ -104,28 +113,75 @@ public class FollowObject : MonoBehaviour {
             if (p.y > max_y)
                 max_y = p.y;
         }
+        
+        return new Vector2(max_x - min_x, max_y - min_y);
+    }
 
-        for (var i = 0; i < _removed.Count; ++i)
+    private float GetWantedSize(Vector2 player1_pos, Vector2 player2_pos, List<Vector2> tracked_positions, float padding, Camera camera, float wanted_rotation)
+    {
+        var diff = GetCameraBounds(player1_pos, player2_pos, tracked_positions);
+        var rotated_diff = RotateAround(diff, (player1_pos + player2_pos) * 0.5f, wanted_rotation);
+
+        var m = Padding * Mathf.Max(diff.magnitude - 70.0f, 0)/80.0f;
+
+        var horisontal_size = rotated_diff.x + padding * 2.0f + m;
+        var vertical_size = rotated_diff.y + padding * 2.0f + m;
+
+        var cam_height = camera.orthographicSize * 2.0f;
+        var cam_width = cam_height * camera.aspect;
+
+        var aspect = camera.aspect; // a = w / h
+        var size = 0.0f; // h = w / a
+
+        if (_size_direction == SizeDirection.x)
         {
-            Vector2 p = _removed[i].pos;
-
-            if (p.x < min_x)
-                min_x = p.x;
-
-            if (p.x > max_x)
-                max_x = p.x;
-
-            if (p.y < min_y)
-                min_y = p.y;
-
-            if (p.y > max_y)
-                max_y = p.y;
+            if (Time.time > _can_change_size_direction_at && cam_height < vertical_size)
+            {
+                size = vertical_size;
+                _can_change_size_direction_at = Time.time + ChangeSizeDirectionCooldown;
+                _size_direction = SizeDirection.y;
+            }
+            else
+            {
+                size = horisontal_size / aspect;
+            }
+        }
+        else
+        {
+            if (Time.time > _can_change_size_direction_at && cam_width < horisontal_size)
+            {
+                size = horisontal_size / aspect;
+                _can_change_size_direction_at = Time.time + ChangeSizeDirectionCooldown;
+                _size_direction = SizeDirection.x;
+            }
+            else
+            {
+                size = vertical_size;
+            }
+        }
+        
+        if (Time.time > _can_change_size_direction_at && cam_height < vertical_size)
+        {
+            size = vertical_size;
+            _can_change_size_direction_at = Time.time + ChangeSizeDirectionCooldown;
         }
 
-        float y_diff = (max_y - min_y);
-        float x_diff = (max_x - min_x);
+        return Mathf.Max(MinSize, size) / 2.0f;
+    }
 
-        return _camera.orthographicSize + (Mathf.Max(y_diff, x_diff)/1.5f - _camera.orthographicSize) * Time.deltaTime * CameraZoomSpeed;
+    static private float GetWantedRotation(Vector2 player1_pos, Vector2 player2_pos)
+    {
+        var pos_diff = player2_pos - player1_pos;
+        return Mathf.Atan2(pos_diff.y, pos_diff.x) * Mathf.Rad2Deg;
+    }
+
+    private void Interpolate()
+    {
+        _camera.orthographicSize = _camera.orthographicSize + (_wanted_size - _camera.orthographicSize) * Time.deltaTime * CameraZoomSpeed;
+        _camera.transform.rotation = Quaternion.Lerp(transform.rotation, Quaternion.Euler(0, 0, _wanted_rotation), Time.deltaTime * CameraRotateSpeed);
+        Vector2 current_pos = transform.position;
+        Vector3 distance_to_move = (_wanted_pos - current_pos) * CameraFollowSpeed * Time.deltaTime;
+        transform.position += distance_to_move;
     }
 
     void Update()
@@ -133,11 +189,17 @@ public class FollowObject : MonoBehaviour {
         if (Data.Victory)
             return;
 
-        var wanted_pos = CalculateWantedPos();
-        _camera.orthographicSize = Mathf.Clamp(GetNewCameraSize(), _original_camera_size, Mathf.Infinity);
-        Vector2 current_pos = transform.position;
-        var distance_to_wanted = wanted_pos - current_pos;
-        var distance_to_move = distance_to_wanted * CameraFollowSpeed * Time.deltaTime;
-        transform.position += new Vector3(distance_to_move.x, distance_to_move.y, 0);
+        _removed = _removed.FindAll(x => Time.time < x.end_of_life);
+
+        var tracked_positions = new List<Vector2>();
+        TrackedOther.ForEach(x => tracked_positions.Add(x.transform.position));
+        _removed.ForEach(x => tracked_positions.Add(x.pos));
+
+        var player1_pos = TrackedPlayer1.transform.position;
+        var player2_pos = TrackedPlayer2.transform.position;
+        _wanted_pos = GetWantedPos(player1_pos, player2_pos, tracked_positions);
+        _wanted_rotation = GetWantedRotation(player1_pos, player2_pos);
+        _wanted_size = GetWantedSize(player1_pos, player2_pos, tracked_positions, Padding, _camera, _wanted_rotation);
+        Interpolate();
     }
 }

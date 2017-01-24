@@ -39,7 +39,7 @@
 			
 			fixed4 frag (v2f i) : SV_Target
 			{ 
-				float2 p = i.uv - _WorldSpaceCameraPos.xy * 0.001;
+				float2 p = (i.uv - _WorldSpaceCameraPos.xy * 0.001) * 2.0;
 				float ns = smoothstep(0.9, 0.95, snoise(p * 175.0f)) * 2.0f;
 				float var = snoise(p * 10) * 0.25 + 0.4;
 				float r = snoise(p.yx * 50) * 0.5 + 0.9;

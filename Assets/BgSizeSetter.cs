@@ -18,7 +18,7 @@ public class BgSizeSetter : MonoBehaviour {
 
     void Update ()
     {
-        var s = Mathf.Log10(_cam.orthographicSize * 3.0f) * 10.0f;
+        var s = Mathf.Log10(_cam.orthographicSize * 3.0f) * 40.0f;
         transform.localScale = new Vector3(s, 1.0f, s);
     }
 }
