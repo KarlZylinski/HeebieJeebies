@@ -345,12 +345,12 @@ Prefab:
     - target: {fileID: 114073649527774618, guid: db1b5baded40f2748bed4f231d03bb0c,
         type: 2}
       propertyPath: CameraFollowSpeed
-      value: 5
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 114073649527774618, guid: db1b5baded40f2748bed4f231d03bb0c,
         type: 2}
       propertyPath: CameraZoomSpeed
-      value: 5
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 114073649527774618, guid: db1b5baded40f2748bed4f231d03bb0c,
         type: 2}
@@ -365,7 +365,7 @@ Prefab:
     - target: {fileID: 114073649527774618, guid: db1b5baded40f2748bed4f231d03bb0c,
         type: 2}
       propertyPath: CameraRotateSpeed
-      value: 5
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 114073649527774618, guid: db1b5baded40f2748bed4f231d03bb0c,
         type: 2}

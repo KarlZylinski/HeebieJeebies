@@ -122,7 +122,7 @@ public class FollowObject : MonoBehaviour {
         var diff = GetCameraBounds(player1_pos, player2_pos, tracked_positions);
         var rotated_diff = RotateAround(diff, (player1_pos + player2_pos) * 0.5f, wanted_rotation);
 
-        var m = Padding * Mathf.Max(diff.magnitude - 70.0f, 0)/80.0f;
+        var m = Padding * Mathf.Max(diff.magnitude - 70.0f, 0)/50.0f;
 
         var horisontal_size = rotated_diff.x + padding * 2.0f + m;
         var vertical_size = rotated_diff.y + padding * 2.0f + m;
@@ -174,6 +174,7 @@ public class FollowObject : MonoBehaviour {
         var pos_diff = player2_pos - player1_pos;
         return Mathf.Atan2(pos_diff.y, pos_diff.x) * Mathf.Rad2Deg;
     }
+
 
     private void Interpolate()
     {
