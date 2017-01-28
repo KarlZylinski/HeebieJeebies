@@ -5,6 +5,12 @@ using UnityEngine;
 public class CannonBallCollisionChecker : MonoBehaviour
 {
     public FollowObject ObjectFollower;
+    private bool _removed_from_follower;
+
+    void Start()
+    {
+        _removed_from_follower = false;
+    } 
 
     void OnCollisionEnter2D(Collision2D collision)
     {
@@ -53,6 +59,24 @@ public class CannonBallCollisionChecker : MonoBehaviour
     private void Remove()
     {
         gameObject.tag = "CannonBallGrounded";
-        ObjectFollower.Remove(gameObject, 0.9f);
+    }
+
+    void OnDestroy()
+    {
+        ObjectFollower.Remove(gameObject, 0.0f);
+    }
+
+    void Update()
+    {
+        if (_removed_from_follower)
+            return;
+
+        var rb = GetComponent<Rigidbody2D>();
+
+        if (rb == null)
+            return;
+
+        if (rb.velocity.magnitude < 2)
+            ObjectFollower.Remove(gameObject, 0.9f);
     }
 }
