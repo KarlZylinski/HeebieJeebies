@@ -6,10 +6,12 @@ public class CannonBallCollisionChecker : MonoBehaviour
 {
     public FollowObject ObjectFollower;
     private bool _removed_from_follower;
+    private float _created_at;
 
     void Start()
     {
         _removed_from_follower = false;
+        _created_at = Time.time;
     } 
 
     void OnCollisionEnter2D(Collision2D collision)
@@ -76,7 +78,10 @@ public class CannonBallCollisionChecker : MonoBehaviour
         if (rb == null)
             return;
 
-        if (rb.velocity.magnitude < 2)
+        if (rb.velocity.magnitude < 2 && Time.time > _created_at + 2.0f)
+        {
             ObjectFollower.Remove(gameObject, 0.9f);
+            _removed_from_follower = true;
+        }
     }
 }
